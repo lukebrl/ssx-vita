@@ -1,0 +1,300 @@
+TARGET          := libvitaGL
+SOURCES         := source source/utils source/utils/preprocessor
+
+CFILES   := $(foreach dir,$(SOURCES), $(wildcard $(dir)/*.c))
+CPPFILES := $(foreach dir,$(SOURCES), $(wildcard $(dir)/*.cpp))
+OBJS     := $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
+
+SAMPLES     := $(foreach dir,$(wildcard samples/*), $(dir).smp)
+SAMPLES_CLR := $(foreach dir,$(wildcard samples/*), $(dir).smpc)
+
+PREFIX  = arm-vita-eabi
+CC      = $(PREFIX)-gcc
+CXX     = $(PREFIX)-g++
+AR      = $(PREFIX)-gcc-ar
+CFLAGS  = -g -Wl,-q -O3 -ffast-math -mtune=cortex-a9 -mfpu=neon -Wno-incompatible-pointer-types -Wno-stringop-overflow -mfp16-format=ieee \
+	-DVGL_GIT_HASH='"$(shell git rev-parse --short HEAD)"' -Isource
+ASFLAGS = $(CFLAGS)
+
+ifeq ($(SOFTFP_ABI),1)
+CFLAGS += -mfloat-abi=softfp -DHAVE_SOFTFP_ABI
+endif
+
+ifeq ($(NO_DEBUG),1)
+CFLAGS += -DSKIP_ERROR_HANDLING
+endif
+
+ifeq ($(NO_SPLASHSCREEN),1)
+CFLAGS += -DSKIP_SPLASHSCREEN
+endif
+
+ifeq ($(NO_DMAC),1)
+CFLAGS += -DDISABLE_DMAC
+endif
+
+ifeq ($(NO_CLIB),1)
+CFLAGS += -DDISABLE_CLIB
+endif
+
+ifeq ($(NO_TEX_COMBINER),1)
+CFLAGS += -DDISABLE_TEXTURE_COMBINER
+endif
+
+ifeq ($(NO_TILE_CLIPPER),1)
+CFLAGS += -DDISABLE_TILE_CLIPPER
+endif
+
+ifeq ($(HAVE_SHARK_LOG),1)
+CFLAGS += -DHAVE_SHARK_LOG
+endif
+
+ifeq ($(HAVE_CUSTOM_HEAP),1)
+CFLAGS += -DHAVE_CUSTOM_HEAP
+endif
+
+ifeq ($(HAVE_GLSL_TEXTURE_SIZE),1)
+CFLAGS += -DHAVE_GLSL_TEXTURE_SIZE
+endif
+
+ifeq ($(HAVE_GLSL_UBOS),1)
+CFLAGS += -DHAVE_GLSL_UBOS
+endif
+
+ifeq ($(HAVE_UNFLIPPED_FBOS),1)
+CFLAGS += -DHAVE_UNFLIPPED_FBOS
+endif
+
+ifeq ($(READBACKS_SPEEDHACK),1)
+CFLAGS += -DREADBACKS_SPEEDHACK
+endif
+
+ifeq ($(BUFFERS_SPEEDHACK),1)
+CFLAGS += -DBUFFERS_SPEEDHACK
+endif
+
+ifeq ($(DRAW_SPEEDHACK),1)
+CFLAGS += -DDRAW_SPEEDHACK
+endif
+
+ifeq ($(DRAW_SPEEDHACK),2)
+CFLAGS += -DSAFER_DRAW_SPEEDHACK
+endif
+
+ifeq ($(MATH_SPEEDHACK),1)
+CFLAGS += -DMATH_SPEEDHACK
+endif
+
+ifeq ($(PRIMITIVES_SPEEDHACK),1)
+CFLAGS += -DPRIMITIVES_SPEEDHACK
+endif
+
+ifeq ($(INDICES_DRAW_SPEEDHACK),1)
+CFLAGS += -DINDICES_DRAW_SPEEDHACK
+endif
+
+ifeq ($(INDICES_SPEEDHACK),1)
+CFLAGS += -DINDICES_SPEEDHACK
+endif
+
+ifeq ($(TEXTURES_SPEEDHACK),1)
+CFLAGS += -DTEXTURES_SPEEDHACK
+endif
+
+ifeq ($(TEXTURE_UPLOADS_SPEEDHACK),1)
+CFLAGS += -DTEXTURE_UPLOADS_SPEEDHACK
+endif
+
+ifeq ($(SHARED_RENDERTARGETS),1)
+CFLAGS += -DHAVE_SHARED_RENDERTARGETS
+endif
+
+ifeq ($(SHARED_RENDERTARGETS),2)
+CFLAGS += -DHAVE_SHARED_RENDERTARGETS -DRECYCLE_RENDERTARGETS
+endif
+
+ifeq ($(UNPURE_TEXTURES),1)
+CFLAGS += -DHAVE_UNPURE_TEXTURES
+endif
+
+ifeq ($(UNPURE_TEXCOORDS),1)
+CFLAGS += -DHAVE_UNPURE_TEXCOORDS
+endif
+
+ifeq ($(UNPURE_TEXFORMATS),1)
+CFLAGS += -DHAVE_UNPURE_TEXFORMATS
+endif
+
+ifeq ($(PHYCONT_ON_DEMAND),1)
+CFLAGS += -DPHYCONT_ON_DEMAND
+endif
+
+ifeq ($(SINGLE_THREADED_GC),1)
+CFLAGS += -DHAVE_SINGLE_THREADED_GC
+endif
+
+ifeq ($(NO_CIRCULAR_POOL),1)
+CFLAGS += -DDISABLE_CIRCULAR_POOL
+endif
+
+ifeq ($(CIRCULAR_POOL_SPEEDHACK),1)
+CFLAGS += -DCIRCULAR_POOL_SPEEDHACK
+endif
+
+ifeq ($(USE_SCRATCH_MEMORY),1)
+CFLAGS += -DHAVE_SCRATCH_MEMORY
+endif
+
+ifeq ($(LOG_ERRORS),1)
+CFLAGS += -DLOG_ERRORS
+endif
+
+ifeq ($(HAVE_PROFILING),1)
+CFLAGS += -DHAVE_PROFILING
+endif
+
+ifeq ($(HAVE_VERTEX_LAYOUT_CACHE),1)
+CFLAGS += -DHAVE_VERTEX_LAYOUT_CACHE
+endif
+
+ifeq ($(LOG_ERRORS),2)
+CFLAGS += -DLOG_ERRORS -DFILE_LOG
+endif
+
+ifeq ($(HAVE_WRAPPED_ALLOCATORS),1)
+CFLAGS += -DHAVE_WRAPPED_ALLOCATORS
+endif
+
+ifeq ($(HAVE_DEBUGGER),1)
+CFLAGS += -DHAVE_DEBUG_INTERFACE
+endif
+
+ifeq ($(HAVE_DEBUGGER),2)
+CFLAGS += -DHAVE_DEVKIT -DHAVE_RAZOR -DHAVE_DEBUG_INTERFACE
+endif
+
+ifeq ($(HAVE_RAZOR),1)
+CFLAGS += -DHAVE_RAZOR
+endif
+
+ifeq ($(HAVE_DEVKIT),1)
+CFLAGS += -DHAVE_DEVKIT -DHAVE_RAZOR
+endif
+
+ifeq ($(SAMPLERS_SPEEDHACK),1)
+CFLAGS += -DSAMPLERS_SPEEDHACK
+endif
+
+ifeq ($(HAVE_HIGH_FFP_TEXUNITS),1)
+CFLAGS += -DHAVE_HIGH_FFP_TEXUNITS
+endif
+
+ifeq ($(HAVE_DISPLAY_LISTS),1)
+CFLAGS += -DHAVE_DLISTS
+endif
+
+ifeq ($(HAVE_PTHREAD),1)
+CFLAGS += -DHAVE_PTHREAD
+endif
+
+ifeq ($(SAFE_ETC1),1)
+CFLAGS += -DDISABLE_HW_ETC1
+endif
+
+ifeq ($(SAFE_DRAW),1)
+CFLAGS += -DSTRICT_DRAW_COMPLIANCE
+endif
+
+ifeq ($(SAFE_UNIFORMS),1)
+CFLAGS += -DSTRICT_UNIFORMS_COMPLIANCE
+endif
+
+ifeq ($(HAVE_WVP_ON_GPU),1)
+CFLAGS += -DHAVE_WVP_ON_GPU
+endif
+
+ifeq ($(STORE_DEPTH_STENCIL),1)
+CFLAGS += -DSTORE_DEPTH_STENCIL
+endif
+
+ifeq ($(HAVE_VITA3K_SUPPORT),1)
+CFLAGS += -DHAVE_VITA3K_SUPPORT -DDISABLE_HW_ETC1
+endif
+
+ifeq ($(HAVE_SHADER_CACHE),1)
+CFLAGS += -DHAVE_SHADER_CACHE
+endif
+
+ifeq ($(HAVE_TEXTURE_CACHE),1)
+CFLAGS += -DHAVE_TEX_CACHE
+endif
+
+ifeq ($(HAVE_FIXED_ATTRIBUTES),1)
+CFLAGS += -DHAVE_FIXED_ATTRIBUTES
+endif
+
+ifeq ($(DISABLE_FFP_MULTITEXTURE),1)
+CFLAGS += -DDISABLE_FFP_MULTITEXTURE
+endif
+
+ifeq ($(DISABLE_W_CLAMPING),1)
+CFLAGS += -DISABLE_W_CLAMPING
+endif
+
+ifeq ($(DEBUG_THREAD_SAFENESS),1)
+CFLAGS += -DDEBUG_THREAD_SAFENESS
+endif
+
+ifeq ($(DEBUG_GLSL_TRANSLATOR),1)
+CFLAGS += -DDEBUG_GLSL_TRANSLATOR
+endif
+
+ifeq ($(DEBUG_GLSL_PREPROCESSOR),1)
+CFLAGS += -DDEBUG_GLSL_PREPROCESSOR
+endif
+
+ifeq ($(HAVE_CPU_TRACER),1)
+CFLAGS += -DHAVE_CPU_TRACER
+endif
+
+ifeq ($(DEPTH_STENCIL_HACK),1)
+CFLAGS += -DDEPTH_STENCIL_HACK
+endif
+
+ifeq ($(HAVE_FFP_SHADER_SUPPORT),1)
+CFLAGS += -DHAVE_FFP_SHADER_SUPPORT
+endif
+
+ifeq ($(DEBUG_GC),1)
+CFLAGS += -DDEBUG_GC
+endif
+
+ifeq ($(ENABLE_LEGACY_PIPELINE),1)
+CFLAGS += -DENABLE_LEGACY_PIPELINE
+endif
+
+
+
+CXXFLAGS  = $(CFLAGS) -fexceptions -std=gnu++11 -Wno-write-strings
+
+all: $(TARGET).a
+
+$(TARGET).a: $(OBJS)
+	$(AR) -rc $@ $^
+	
+%.smpc:
+	@make -C $(@:.smpc=) clean
+	
+%.smp:
+	@make -C $(@:.smp=)
+	ls -1 $(@:.smp=)/*.vpk | xargs -L1 -I{} cp {} .
+	
+clean: $(SAMPLES_CLR)
+	@rm -rf $(TARGET).a $(TARGET).elf $(OBJS)
+	
+install: $(TARGET).a
+	@mkdir -p $(VITASDK)/$(PREFIX)/lib/
+	cp $(TARGET).a $(VITASDK)/$(PREFIX)/lib/
+	@mkdir -p $(VITASDK)/$(PREFIX)/include/
+	cp source/vitaGL.h $(VITASDK)/$(PREFIX)/include/
+	
+samples: $(SAMPLES)

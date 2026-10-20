@@ -1,0 +1,19 @@
+build/*
+.DS_Store
+.idea/
+cmake-build-*/
+lib/libc_bridge/out/
+apk/
+lib/vitagl/**/*.o
+lib/vitagl/libvitaGL.a
+build-release/
+
+# Data tool
+datatool/build/
+datatool/dist/
+datatool/*.spec
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/

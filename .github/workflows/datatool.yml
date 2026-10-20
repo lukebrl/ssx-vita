@@ -1,0 +1,55 @@
+# Builds the data tool for Windows, Linux and macOS. Each build is uploaded as
+# an artifact; on a version tag (v*) they are also attached to the release.
+# The VPK is not built here: it needs the softfp VitaSDK (see docs/BUILDING.md).
+name: Data tool
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths: ["datatool/**", ".github/workflows/datatool.yml"]
+  pull_request:
+    paths: ["datatool/**", ".github/workflows/datatool.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: ssx-datatool-windows
+          - os: ubuntu-22.04
+            artifact: ssx-datatool-linux
+          - os: macos-14
+            artifact: ssx-datatool-macos
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: datatool
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencies
+        # imageio-ffmpeg: an ffmpeg build bundled in the tool for the movies (GPL, see docs/BUILDING.md)
+        run: python -m pip install -r requirements.txt imageio-ffmpeg pyinstaller
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+      - name: Package
+        run: >
+          pyinstaller --onefile --windowed --collect-binaries imageio_ffmpeg --name ssx-datatool ssx_datatool.py
+      - name: Zip (macOS app bundle)
+        if: runner.os == 'macOS'
+        run: cd dist && zip -r ssx-datatool-macos.zip ssx-datatool.app && rm -rf ssx-datatool.app ssx-datatool
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: datatool/dist/*
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: datatool/dist/*

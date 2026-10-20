@@ -1,0 +1,11 @@
+[project]
+name = "ssx-datatool"
+description = "Builds the SSX Vita port's data folder from the SSX Android APK"
+requires-python = ">=3.10"
+dynamic = ["version", "dependencies"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
