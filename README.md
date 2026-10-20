@@ -32,7 +32,9 @@ the data the port needs.
 ## Installation
 
 1. Download the latest [release](../../releases): `ssx_vita.vpk` and the data tool for your
-   PC (`ssx-datatool-windows`, `-linux` or `-macos`).
+   PC: `ssx-datatool-windows.exe`, `ssx-datatool-linux.tar.gz` (extract it) or
+   `ssx-datatool-macos.zip` (extract it; the first time, right-click the app and choose
+   **Open**, as it isn't signed).
 2. Run the data tool. Pick your SSX APK, then press **Build**. It takes a few minutes and
    writes an `ssx` folder next to the tool.
 3. Copy that `ssx` folder to `ux0:data/` on your Vita (for example over USB or FTP with

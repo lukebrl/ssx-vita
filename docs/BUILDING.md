@@ -46,7 +46,8 @@ Packaged builds (one file, no Python needed) are made with PyInstaller, as the
 
 ```sh
 python -m pip install pyinstaller
-pyinstaller --onefile --windowed --name ssx-datatool ssx_datatool.py
+pyinstaller --onefile --windowed --name ssx-datatool --icon ssxdata/icon.png \
+    --add-data "ssxdata/icon.png:ssxdata" ssx_datatool.py      # ";" instead of ":" on Windows
 ```
 
 ## Layout

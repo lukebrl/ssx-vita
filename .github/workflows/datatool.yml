@@ -12,6 +12,10 @@ on:
     paths: ["datatool/**", ".github/workflows/datatool.yml"]
   workflow_dispatch:
 
+# Attaching the builds to a release writes to the repository
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -40,10 +44,21 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Package
         run: >
-          pyinstaller --onefile --windowed --collect-binaries imageio_ffmpeg --name ssx-datatool ssx_datatool.py
+          pyinstaller --onefile --windowed --collect-binaries imageio_ffmpeg --name ssx-datatool
+          --icon ssxdata/icon.png --add-data "ssxdata/icon.png${{ runner.os == 'Windows' && ';' || ':' }}ssxdata"
+          ssx_datatool.py
+      # One file per system, named as the README says: the .exe as it is, the
+      # Linux program in a .tar.gz (keeps its executable bit), the macOS app
+      # bundle (a folder) in a .zip
+      - name: Name (Windows)
+        if: runner.os == 'Windows'
+        run: Rename-Item dist/ssx-datatool.exe ssx-datatool-windows.exe
+      - name: Archive (Linux)
+        if: runner.os == 'Linux'
+        run: cd dist && chmod +x ssx-datatool && tar -czf ssx-datatool-linux.tar.gz ssx-datatool && rm ssx-datatool
       - name: Zip (macOS app bundle)
         if: runner.os == 'macOS'
-        run: cd dist && zip -r ssx-datatool-macos.zip ssx-datatool.app && rm -rf ssx-datatool.app ssx-datatool
+        run: cd dist && ditto -c -k --keepParent ssx-datatool.app ssx-datatool-macos.zip && rm -rf ssx-datatool.app ssx-datatool
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

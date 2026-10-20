@@ -165,8 +165,22 @@ class App:
         self.root.destroy()
 
 
+def icon_path():
+    """The app's icon (the port's LiveArea icon): next to this module, or in the packaged tool's bundle."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return os.path.join(base, "ssxdata", "icon.png")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+
+
 def main():
     root = tk.Tk()
+    try:
+        # Kept on the root: Tk drops the image when its Python object goes
+        root.icon = tk.PhotoImage(file=icon_path())
+        root.iconphoto(True, root.icon)
+    except (tk.TclError, OSError):
+        pass  # the default icon then
     App(root)
     root.mainloop()
     return 0
