@@ -42,7 +42,8 @@ the data the port needs.
 4. Install `ssx_vita.vpk` with VitaShell.
 5. Start **SSX (2012)** from the LiveArea.
 
-**The first start takes longer: the shader cache is built as the game runs.**
+**The first start takes longer, around 4 minutes: the shader cache is built as the game runs.
+Be patient, it only happens once.**
 
 ### Updating
 
