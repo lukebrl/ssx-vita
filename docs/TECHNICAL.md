@@ -38,7 +38,8 @@ logs, but its effect wasn't measured on its own.
 | Audio output | `jni/jni_audio.c` plays 4 grains of 16 ms queued on its own thread. The first double buffer gave 21 ms of slack, and a busy core meant dropouts |
 | A new ghost record sometimes made the game report the ghost file corrupted: `store()` allocated the whole sparse file (~400 KB) to write it, the allocation failed when memory was short in a race, and the close failed silently | Written through a static 64 KB buffer (`reimpl/sparse_save.c`) |
 | Movies: the APK's player is Java (`MediaPlayer`) | `jni/jni_video.c` plays them with the Vita's `sceAvPlayer` on the GL thread and draws each frame over the game's with a textured quad. The decoder takes 4 MB of frames and a 14 MB block of physically contiguous memory, which vitaGL leaves free (`MOVIE_PHYCONT`, 20 MB); the player's own ~3.8 MB comes from a memory block made per movie. The data tool re-encodes the movies to H.264 960×544 with AAC audio (`movies.py`): 681 → 127 MB |
-| Controls | PS3 pad layout; L2/R2 on the halves of the rear touchpad. Select + Start shows or hides the FPS counter (`ssx/overlay.c`, hidden by default); Square and Circle are the ground presses (below) |
+| Controls | PS3 pad layout; L2/R2 on the halves of the rear touchpad. Select + Start opens the port's settings menu (`ssx/overlay.c`, drawn into the finished frame from vitaGL's display callback, no GL calls; the game gets no buttons while it is open; settings in `ssx/settings.c`); Square and Circle are the ground presses (below) |
+| Games only get CPU cores 0-2; core 3 is the system's | With GrapheneCt's CapUnlocker plugin a game thread's affinity may include core 3. As the game names its background threads (EA job workers, file streaming, texture work), they widen their mask to all 4 cores (`ssx/core3.c`); render, simulation and audio stay on 0-2, where the system's work can't interrupt them. Without the plugin the kernel refuses the mask and nothing changes. One debug run each on the same map: race speed median 100% instead of 93%, the simulation waiting 18.9 ms per step for the riders' jobs instead of 24.5, same frame rate |
 
 ## Memory
 
@@ -133,6 +134,13 @@ on one another and mostly run one after the other. Scheduling can't fix that (se
 So the simulation runs at 30 Hz in races, and the render loop at 60 Hz anyway: the game's render
 objects interpolate between two simulation states (`InterpolateState`), so the frames in between
 show motion rather than repeats. Races then run between ~35 and 60 FPS depending on the map.
+
+At 30 Hz the same limit applies, with less margin: a step has 33 ms, and the riders' jobs take
+~21 ms of it. When all cores are busy (demanding maps, many riders on screen) the jobs wait for
+CPU time, steps run longer than 33 ms, and the race slows down for a moment while the frame rate
+can look fine. Two settings leave the race more CPU: the 4th core with CapUnlocker (above), and
+**RACE FPS 30** in the settings menu, which sets the render loop to 30 Hz in races (`ssx/fpscap.c`)
+so the render thread draws half as many frames.
 
 ### UI freezes and in-race stutters
 

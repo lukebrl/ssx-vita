@@ -167,24 +167,29 @@ void poll_pad() {
     sceCtrlPeekBufferPositiveExt2(0, &pad, 1);
 
     // Gamepad buttons
-    old_buttons = current_buttons;
-    current_buttons = is_pstv ? pad.buttons : handheld_buttons(pad.buttons);
+    uint32_t raw = is_pstv ? pad.buttons : handheld_buttons(pad.buttons);
 
-    // Holding Select, pressing Start shows or hides the FPS counter. That
-    // Start press belongs to the shortcut: the game doesn't see it (it would
-    // open the pause menu), until Start is let go.
-    static int start_taken;
-    if (start_taken) {
-        if (current_buttons & SCE_CTRL_START)
-            current_buttons &= ~SCE_CTRL_START;
-        else
-            start_taken = 0;
-    } else if ((current_buttons & SCE_CTRL_SELECT) && (current_buttons & SCE_CTRL_START) &&
-               !(old_buttons & SCE_CTRL_START)) {
-        overlay_toggle();
-        start_taken = 1;
-        current_buttons &= ~SCE_CTRL_START;
-    }
+    // Holding Select, pressing Start opens or closes the port's settings menu
+    // (ssx/overlay.c). While it is open the game sees no button and centred
+    // sticks; the buttons held when it closes (the Start of the shortcut,
+    // Circle) stay the menu's until they are let go, so the game doesn't
+    // take them (Start would open its pause menu).
+    static uint32_t raw_old, blocked;
+    static int was_open;
+    uint32_t raw_pressed = raw & ~raw_old;
+    raw_old = raw;
+    if ((raw & SCE_CTRL_SELECT) && (raw_pressed & SCE_CTRL_START))
+        overlay_menu_toggle();
+    else if (overlay_menu_is_open())
+        overlay_menu_input(raw_pressed);
+    int menu = overlay_menu_is_open();
+    if (was_open && !menu)
+        blocked |= raw;
+    was_open = menu;
+    blocked &= raw;
+
+    old_buttons = current_buttons;
+    current_buttons = menu ? 0 : raw & ~blocked;
     pressed_buttons = current_buttons & ~old_buttons;
     released_buttons = ~current_buttons & old_buttons;
 
@@ -197,7 +202,9 @@ void poll_pad() {
         }
     }
 
-    // Analog sticks
+    // Analog sticks (centred for the game while the menu is open)
+    if (menu)
+        pad.lx = pad.ly = pad.rx = pad.ry = 128;
     poll_stick(CONTROLS_STICK_LEFT, (float)pad.lx, (float)pad.ly, analog_lx, analog_ly, LEFT_ANALOG_DEADZONE);
     poll_stick(CONTROLS_STICK_RIGHT, (float)pad.rx, (float)pad.ry, analog_rx, analog_ry, RIGHT_ANALOG_DEADZONE);
 }

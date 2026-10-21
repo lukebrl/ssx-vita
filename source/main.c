@@ -7,6 +7,7 @@
 
 #include "ssx/perf.h"
 #include "ssx/overlay.h"
+#include "ssx/settings.h"
 #include "utils/init.h"
 #include "utils/glutil.h"
 #include "utils/logger.h"
@@ -44,6 +45,7 @@ int main() {
 
     // vitaGL must be up before the game touches GL; its own eglInitialize
     // call (through Java EGL10) then becomes a no-op.
+    ssx_settings_load(); // MSAA is set when vitaGL starts
     ssx_log_free_memory("before vitaGL init");
     gl_init();
     overlay_init();

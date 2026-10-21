@@ -146,6 +146,8 @@ set(SOURCES
     source/ssx/terraincull.c
     source/ssx/vaocache.c
     source/ssx/boardpress.c
+    source/ssx/settings.c
+    source/ssx/core3.c
     source/ssx/jobprof.c
     source/ssx/sfmesh.c
     source/ssx/hwskin.c

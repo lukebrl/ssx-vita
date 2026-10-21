@@ -24,6 +24,7 @@
 #include "utils/logger.h"
 #include "reimpl/bits/_errno_bionic.h"
 #include "ssx/perf.h"
+#include "ssx/core3.h"
 
 
 #define BIONIC_PTHREAD_COND_INITIALIZER              0
@@ -649,6 +650,7 @@ int prctl_soloader(int option, unsigned long arg2, unsigned long arg3, unsigned 
         // priority: let it run first, the workers take the rest
         else if (strcmp((const char *)arg2, "FGGameRender") == 0)
             sceKernelChangeThreadPriority(0, 0x98);
+        ssx_core3_thread_named((const char *)arg2); // background threads: the 4th core too (CapUnlocker)
         l_info("[THREAD] \"%s\" is thread 0x%x (Vita priority 0x%x)", (const char *)arg2,
                (unsigned)sceKernelGetThreadId(), (unsigned)sceKernelGetThreadCurrentPriority());
     }

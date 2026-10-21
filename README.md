@@ -28,6 +28,11 @@ the data the port needs.
 - **The SSX APK, version 0.0.8430**, from your own copy of the game. The data tool checks it.
 - About **2 GB** free on `ux0:`.
 - A PC (Windows, Linux or macOS) to run the data tool.
+- **Highly recommended:** [CapUnlocker](https://github.com/GrapheneCt/CapUnlocker/releases)
+  (put `capunlocker.skprx` under `*KERNEL` in `ur0:tai/config.txt`, then reboot). The Vita
+  normally keeps its 4th CPU core for the system; with CapUnlocker the port also runs the game's
+  background work there, which leaves more CPU for the race and keeps it at full speed much more
+  often (see [Slow motion in races](#slow-motion-in-races)). The port works without it.
 
 ## Installation
 
@@ -73,7 +78,33 @@ the rear touchpad is L2 or R2. On a PS TV, the DualShock's shoulder buttons map 
 which still has them in its code and data; it only had no control for them. Details in
 [docs/TECHNICAL.md](docs/TECHNICAL.md#ground-presses-nose-and-tail).
 
-**FPS counter**: hold **Select** and press **Start** to show or hide it (hidden by default).
+## Settings menu
+
+Hold **Select** and press **Start** to open or close the port's settings menu. The game keeps
+running behind it. **Up/Down** picks a line, **Left/Right** or **Cross** changes it, **Circle**
+closes the menu. Settings are saved at once, in `ux0:data/ssx/port_settings.txt`.
+
+| Setting | Default | What it does |
+|---|---|---|
+| FPS COUNTER | Off | Frames per second and frame time, top left. |
+| CPU USAGE | Off | How busy each of the 4 CPU cores is. |
+| MSAA | Off | 2x anti-aliasing: smoother edges, a little more GPU work. Applies at the next start of the game. |
+| RACE FPS | 60 | 60 or 30 frames per second in races (menus stay at 60). Applies at once. See below. |
+| 4TH CORE | On | Uses the 4th CPU core when [CapUnlocker](#what-you-need) is installed. The line under it says whether CapUnlocker was found. Applies at the next start of the game. |
+
+### Slow motion in races
+
+The race itself (the riders, their animations, physics) is updated 30 times per second, and
+every update moves the game forward by exactly 1/30 of a second. When the Vita's CPU is fully
+busy (demanding maps, many riders on screen), an update can take longer than that, so the game
+moves forward slower than real time: the race plays in slow motion for a moment, even if the
+frame rate looks fine.
+
+Two things leave more CPU for the race:
+
+- **CapUnlocker** with **4TH CORE** on: part of the 4th core goes to the game's background work.
+- **RACE FPS 30**: drawing half as many frames frees a large part of the CPU, which then goes to
+  the race. Use it if you still notice slow motion; the trade-off is 30 FPS instead of up to 60.
 
 ## Troubleshooting
 

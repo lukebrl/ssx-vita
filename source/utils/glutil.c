@@ -18,6 +18,7 @@
 #include "utils/logger.h"
 #include "ssx/perf.h"
 #include "ssx/overlay.h"
+#include "ssx/settings.h"
 #include "ssx/glprof.h"
 #include "jni/jni_ssx.h"
 
@@ -74,7 +75,9 @@ void gl_init() {
     // and its results screen, so 1 MB per frame is plenty.
     vglSetCircularPoolSize(1024 * 1024);
 
-    // No MSAA: SSX is GPU-heavy for the Vita.
+    // MSAA as the player set it in the settings menu (ssx/settings.c; off by
+    // default, 2x at most: with 4x some textures came out multicolored). It
+    // applies to the game's render targets too.
     // Leave 16 MB of main RAM free (not 6): the game creates ~25 threads
     // after this, and their stacks come out of it.
     // The common dialog memory (~8.8 MB) becomes a vitaGL pool too: the game
@@ -85,7 +88,8 @@ void gl_init() {
     // a 14 MB block). vitaGL used at most 8.9 MB of its pool there in a session
     // with races; what no longer fits goes to its other pools, among them the
     // common dialog one (8.8 MB, never used).
-    vglInitWithCustomThreshold(0, 960, 544, 16 * 1024 * 1024, 0, MOVIE_PHYCONT, 0, SCE_GXM_MULTISAMPLE_NONE);
+    SceGxmMultisampleMode msaa = ssx_msaa_active == 2 ? SCE_GXM_MULTISAMPLE_2X : SCE_GXM_MULTISAMPLE_NONE;
+    vglInitWithCustomThreshold(0, 960, 544, 16 * 1024 * 1024, 0, MOVIE_PHYCONT, 0, msaa);
 }
 
 // Deletes from threads without the GL context. Android drops GL calls there,

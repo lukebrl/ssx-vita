@@ -47,6 +47,7 @@
 #include <so_util/so_util.h>
 
 #include "ssx/memreport.h"
+#include "ssx/settings.h"
 #include "ssx/perf.h"
 #include "reimpl/fastmath.h"
 #include "utils/logger.h"
@@ -102,10 +103,13 @@ static int loop_rate_thread(SceSize args, void *argp) {
             continue;
         int race = ssx_allocator_largest_free(world) < WORLD_LOADED;
         float hz = race ? RACE_HZ : (float)MIN_FPS;
-        if (LOOP_HZ(sim_loop) != hz || LOOP_HZ(render_loop) != (float)MIN_FPS) {
+        // Races at 30 FPS if the player chose it (settings menu): the render
+        // thread draws half as many frames, CPU time left to the riders' jobs
+        float render_hz = race && ssx_settings.race_fps == 30 ? 30.0f : (float)MIN_FPS;
+        if (LOOP_HZ(sim_loop) != hz || LOOP_HZ(render_loop) != render_hz) {
             SetLoopFrequency(sim_loop, hz);
-            SetLoopFrequency(render_loop, (float)MIN_FPS);
-            l_info("[FPSCAP] simulation at %.0f Hz, render at %d Hz (%s)", hz, MIN_FPS,
+            SetLoopFrequency(render_loop, render_hz);
+            l_info("[FPSCAP] simulation at %.0f Hz, render at %.0f Hz (%s)", hz, render_hz,
                    race ? "race world loaded" : "menus");
         }
     }
