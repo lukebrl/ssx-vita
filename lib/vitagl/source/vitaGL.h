@@ -871,6 +871,9 @@ extern uint32_t vgl_ssx_oom_count, vgl_ssx_oom_bytes;
 extern uint32_t vgl_ssx_draws, vgl_ssx_draw_setup_us, vgl_ssx_draw_gxm_us;
 // SSX port: shader cache pack lookups (see custom_shaders.c)
 extern uint32_t vgl_ssx_pack_hits, vgl_ssx_pack_misses;
+// Shader cache entries rejected as damaged, shaders compiled, the time spent (us), of it writing the cache
+extern uint32_t vgl_ssx_cache_rejected, vgl_ssx_compiled;
+extern uint64_t vgl_ssx_compile_us, vgl_ssx_cache_write_us, vgl_ssx_cache_file_us, vgl_ssx_cache_rename_us, vgl_ssx_cache_pack_us;
 
 // SSX port: the next level-0 compressed upload allocates a mip chain of this
 // many levels at once (the caller read it from the file header), so the

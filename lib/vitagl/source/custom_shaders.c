@@ -57,6 +57,11 @@ static pack_entry *pack_idx;
 static uint32_t pack_n, pack_idx_cap;
 static int pack_loaded;
 uint32_t vgl_ssx_pack_hits, vgl_ssx_pack_misses;
+// Shaders compiled (cache misses) and the time it took, write included
+uint32_t vgl_ssx_compiled;
+uint64_t vgl_ssx_compile_us;
+uint64_t vgl_ssx_cache_write_us; // of it: writing the cache file and the pack
+uint64_t vgl_ssx_cache_file_us, vgl_ssx_cache_rename_us, vgl_ssx_cache_pack_us; // its parts
 
 static void pack_index(uint8_t type, uint64_t hash, uint32_t off, uint32_t size) {
 	if (pack_n == pack_idx_cap) {
@@ -102,13 +107,26 @@ static void pack_load(void) {
 		pack_index(type, hash, off + 16, size);
 		off += 16 + size;
 	}
+	// A record cut short (the game closed while it was appended): the file is
+	// rewritten without it, or records appended later would sit behind it and
+	// never be read
+	if (sz > 0 && off < (uint32_t)sz) {
+		f = sceIoOpen(fname, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
+		if (f >= 0) {
+			if (off)
+				sceIoWrite(f, pack_data, off);
+			sceIoClose(f);
+		}
+	}
 	pack_len = off;
 }
 
 static const void *pack_find(uint8_t type, uint64_t hash, uint32_t *size) {
 	if (!pack_loaded)
 		pack_load();
-	for (uint32_t i = 0; i < pack_n; i++) {
+	// Newest first: a shader compiled again after a bad entry was rejected
+	// (see unserialize_shader) comes after it
+	for (uint32_t i = pack_n; i-- > 0;) {
 		if (pack_idx[i].hash == hash && pack_idx[i].type == type) {
 			*size = pack_idx[i].size;
 			vgl_ssx_pack_hits++;
@@ -150,8 +168,9 @@ static void pack_add(uint8_t type, uint64_t hash, const void *data, uint32_t siz
 	}
 }
 
-// A cached shader: from the pack, else from its own file (then added to the
-// pack). Returns the data to unserialize and whether it must be freed.
+// A cached shader: from the pack, else from its own file. Returns the data to
+// unserialize and whether it must be freed (it came from its own file: once
+// it unserialized fine, the caller adds it to the pack with cache_found).
 static void *cache_lookup(uint8_t type, uint64_t hash, const char *fname, uint32_t *size, int *must_free) {
 	const void *p = pack_find(type, hash, size);
 	if (p) {
@@ -164,12 +183,27 @@ static void *cache_lookup(uint8_t type, uint64_t hash, const char *fname, uint32
 	size_t sz = sceIoLseek(f, 0, SCE_SEEK_END);
 	sceIoLseek(f, 0, SCE_SEEK_SET);
 	void *buf = vglMalloc(sz);
+	if (!buf) {
+		sceIoClose(f);
+		return NULL;
+	}
 	sceIoRead(f, buf, sz);
 	sceIoClose(f);
-	pack_add(type, hash, buf, sz);
 	*size = sz;
 	*must_free = 1;
 	return buf;
+}
+
+// After unserialize_shader: a good shader read from its own file goes into the
+// pack; a bad one is logged, and the caller compiles the shader again
+static void cache_found(uint8_t type, uint64_t hash, const char *fname, void *buf, uint32_t sz, int must_free, GLboolean ok) {
+	if (ok && must_free)
+		pack_add(type, hash, buf, sz);
+	if (!ok)
+		vgl_log("[SHADERCACHE] bad cache entry for %s (%u bytes, from %s): compiled again\n", fname, sz,
+			must_free ? "its file" : "the pack");
+	if (must_free)
+		vgl_free(buf);
 }
 #endif
 #ifdef HAVE_TEX_CACHE
@@ -846,10 +880,34 @@ void *serialize_shader(void *out, size_t *sz, shader *s, GLboolean save_bindings
 	return _out;
 }
 
-void unserialize_shader(void *in, size_t sz, shader *s, GLboolean load_bindings) {
+// SSX port: a cached shader can be cut short (the game closed or crashed
+// while it was written, during the long first start) or damaged. Unchecked,
+// its program size came out negative, the allocation failed and the copy
+// wrote to address 0: a crash at every start. The layout is now checked
+// first, and the program header with sceGxmProgramCheck; for a bad entry it
+// returns GL_FALSE with s->prog still NULL, and the shader is compiled again.
+uint32_t vgl_ssx_cache_rejected;
+
+GLboolean unserialize_shader(void *in, size_t sz, shader *s, GLboolean load_bindings) {
 	uint8_t *buf = (uint8_t *)in;
 	uint32_t matrix_uniforms_num;
+	if (!in || sz < sizeof(uint32_t))
+		goto bad;
 	vgl_fast_memcpy(&matrix_uniforms_num, buf, sizeof(uint32_t));
+	size_t used = sizeof(uint32_t) * ((size_t)matrix_uniforms_num + 1);
+	if (matrix_uniforms_num > 1024 || used > sz)
+		goto bad;
+	if (load_bindings)
+		used += sizeof(binds_map);
+#ifdef HAVE_GLSL_TEXTURE_SIZE
+	if (used + 1 > sz || buf[used] > SCE_GXM_MAX_TEXTURE_UNITS)
+		goto bad;
+	used += 1 + sizeof(glsl_samplers_info) * buf[used];
+#endif
+	// A program has at least its 32-byte header ('GXP' magic, version, size...)
+	if (used + 32 > sz)
+		goto bad;
+
 	buf += sizeof(uint32_t) * (matrix_uniforms_num + 1);
 	if (load_bindings) {
 		vgl_fast_memcpy(&s->semantics, buf, sizeof(binds_map));
@@ -863,9 +921,17 @@ void unserialize_shader(void *in, size_t sz, shader *s, GLboolean load_bindings)
 		buf += sizeof(glsl_samplers_info) * s->sized_samplers_num;
 	}
 #endif
-	s->size = sz - ((uintptr_t)buf - (uintptr_t)in);
-	s->prog = (SceGxmProgram *)vglMalloc(s->size);
-	vgl_fast_memcpy((SceGxmProgram *)s->prog, buf, s->size);
+	uint32_t prog_size = sz - ((uintptr_t)buf - (uintptr_t)in);
+	SceGxmProgram *prog = (SceGxmProgram *)vglMalloc(prog_size);
+	if (!prog)
+		goto bad;
+	vgl_fast_memcpy(prog, buf, prog_size);
+	if (sceGxmProgramCheck(prog) < 0 || sceGxmProgramGetSize(prog) > prog_size) {
+		vgl_free(prog);
+		goto bad;
+	}
+	s->size = prog_size;
+	s->prog = prog;
 	sceGxmShaderPatcherRegisterProgram(gxm_shader_patcher, s->prog, &s->id);
 	s->unif_buf_size = sceGxmProgramGetDefaultUniformBufferSize(s->prog);
 	if (matrix_uniforms_num) {
@@ -878,6 +944,11 @@ void unserialize_shader(void *in, size_t sz, shader *s, GLboolean load_bindings)
 			s->mat = m;
 		}
 	}
+	return GL_TRUE;
+
+bad:
+	vgl_ssx_cache_rejected++;
+	return GL_FALSE;
 }
 
 #ifdef HAVE_SHADER_CACHE
@@ -886,6 +957,9 @@ static inline __attribute__((always_inline)) void compile_shader(shader *s, GLbo
 #else
 #define vgl_compile_shader(shd, sv) compile_shader(shd, sv)
 static inline __attribute__((always_inline)) void compile_shader(shader *s, GLboolean save_bindings) {
+#endif
+#ifdef HAVE_SHADER_CACHE
+	uint32_t compile_t0 = sceKernelGetProcessTimeLow();
 #endif
 	// Compiling shader source
 	s->prog = shark_compile_shader_extended((const char *)s->source, &s->size, s->type == GL_FRAGMENT_SHADER ? SHARK_FRAGMENT_SHADER : SHARK_VERTEX_SHADER, compiler_opts, compiler_fastmath, compiler_fastprecision, compiler_fastint);
@@ -928,13 +1002,36 @@ static inline __attribute__((always_inline)) void compile_shader(shader *s, GLbo
 #endif
 	shark_clear_output();
 #ifdef HAVE_SHADER_CACHE
-	SceUID f = sceIoOpen(cache_fname, SCE_O_CREAT | SCE_O_WRONLY | SCE_O_TRUNC, 0777);
-	size_t sz;
-	void *buf = serialize_shader(NULL, &sz, s, save_bindings);
-	sceIoWrite(f, buf, sz);
-	sceIoClose(f);
-	pack_add(s->type == GL_VERTEX_SHADER ? 'v' : 'f', s->ssx_hash, buf, sz);
-	vgl_free(buf);
+	// SSX port: only a compiled shader is cached, and its file is written
+	// under a temporary name, then renamed: an interrupted write leaves no
+	// half file behind
+	if (s->prog) {
+		uint32_t write_t0 = sceKernelGetProcessTimeLow();
+		size_t sz;
+		void *buf = serialize_shader(NULL, &sz, s, save_bindings);
+		char tmp_fname[300];
+		sprintf(tmp_fname, "%s.tmp", cache_fname);
+		SceUID f = sceIoOpen(tmp_fname, SCE_O_CREAT | SCE_O_WRONLY | SCE_O_TRUNC, 0777);
+		if (f >= 0) {
+			int written = sceIoWrite(f, buf, sz);
+			sceIoClose(f);
+			uint32_t t1 = sceKernelGetProcessTimeLow();
+			vgl_ssx_cache_file_us += t1 - write_t0;
+			sceIoRemove(cache_fname);
+			if (written == (int)sz)
+				sceIoRename(tmp_fname, cache_fname);
+			else
+				sceIoRemove(tmp_fname);
+			vgl_ssx_cache_rename_us += sceKernelGetProcessTimeLow() - t1;
+		}
+		uint32_t t2 = sceKernelGetProcessTimeLow();
+		pack_add(s->type == GL_VERTEX_SHADER ? 'v' : 'f', s->ssx_hash, buf, sz);
+		vgl_ssx_cache_pack_us += sceKernelGetProcessTimeLow() - t2;
+		vgl_free(buf);
+		vgl_ssx_cache_write_us += sceKernelGetProcessTimeLow() - write_t0;
+	}
+	vgl_ssx_compiled++;
+	vgl_ssx_compile_us += sceKernelGetProcessTimeLow() - compile_t0;
 #endif
 }
 
@@ -2204,12 +2301,14 @@ void glCompileShader(GLuint handle) {
 	int must_free;
 	void *buf = cache_lookup(s->type == GL_VERTEX_SHADER ? 'v' : 'f', hash, fname, &sz, &must_free);
 	if (buf) {
-		vgl_free(s->source);
-		s->source = NULL;
-		unserialize_shader(buf, sz, s, GL_FALSE);
-		if (must_free)
-			vgl_free(buf);
-		return;
+		// The source is kept until the cached shader is known to be good
+		GLboolean ok = unserialize_shader(buf, sz, s, GL_FALSE);
+		cache_found(s->type == GL_VERTEX_SHADER ? 'v' : 'f', hash, fname, buf, sz, must_free, ok);
+		if (ok) {
+			vgl_free(s->source);
+			s->source = NULL;
+			return;
+		}
 	}
 #endif
 
@@ -2589,9 +2688,8 @@ void glLinkProgram(GLuint progr) {
 			int must_free;
 			void *buf = cache_lookup('v', hash, vert_fname, &sz, &must_free);
 			if (buf) {
-				unserialize_shader(buf, sz, p->vshader, GL_TRUE);
-				if (must_free)
-					vgl_free(buf);
+				GLboolean ok = unserialize_shader(buf, sz, p->vshader, GL_TRUE);
+				cache_found('v', hash, vert_fname, buf, sz, must_free, ok);
 			}
 		}
 		if (!p->fshader->prog) {
@@ -2603,9 +2701,8 @@ void glLinkProgram(GLuint progr) {
 			int must_free;
 			void *buf = cache_lookup('f', hash, frag_fname, &sz, &must_free);
 			if (buf) {
-				unserialize_shader(buf, sz, p->fshader, GL_TRUE);
-				if (must_free)
-					vgl_free(buf);
+				GLboolean ok = unserialize_shader(buf, sz, p->fshader, GL_TRUE);
+				cache_found('f', hash, frag_fname, buf, sz, must_free, ok);
 			}
 		}
 #endif

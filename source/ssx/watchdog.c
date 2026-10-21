@@ -123,6 +123,15 @@ void watchdog_swap_done(void) {
             pack_seen = vgl_ssx_pack_hits + vgl_ssx_pack_misses;
             l_info("[GL] shader cache pack: %u found, %u not (so far)", vgl_ssx_pack_hits, vgl_ssx_pack_misses);
         }
+        static uint32_t compiled_seen;
+        if (vgl_ssx_compiled != compiled_seen) {
+            compiled_seen = vgl_ssx_compiled;
+            l_info("[GL] shaders compiled so far: %u in %.1f s (%.1f s of it writing the cache: file %.1f s, "
+                   "replacing it %.1f s, pack %.1f s); %u damaged cache entries rejected",
+                   vgl_ssx_compiled, vgl_ssx_compile_us / 1e6f, vgl_ssx_cache_write_us / 1e6f,
+                   vgl_ssx_cache_file_us / 1e6f, vgl_ssx_cache_rename_us / 1e6f, vgl_ssx_cache_pack_us / 1e6f,
+                   vgl_ssx_cache_rejected);
+        }
         ssx_sfgc_report();
         ssx_displaylist_report();
         ssx_movielife_report();
