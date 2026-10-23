@@ -37,7 +37,8 @@ the data the port needs.
 ## Installation
 
 1. Download the latest [release](../../releases): `ssx_vita.vpk` and the data tool for your
-   PC: `ssx-datatool-windows.exe`, `ssx-datatool-linux.tar.gz` or `ssx-datatool-macos.zip` 
+   PC: `ssx-datatool-windows.exe`, `ssx-datatool-linux.tar.gz`,
+   `ssx-datatool-macos-arm64.zip` (Apple Silicon) or `ssx-datatool-macos-x86_64.zip` (Intel)
    (for linux and macos, it needs to be extracted)
 2. Run the data tool. Pick your SSX APK, then press **Build**. It takes a few minutes and
    writes an `ssx` folder next to the tool.

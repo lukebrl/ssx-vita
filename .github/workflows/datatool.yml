@@ -24,10 +24,21 @@ jobs:
         include:
           - os: windows-latest
             artifact: ssx-datatool-windows
+            asset: ssx-datatool-windows.exe
           - os: ubuntu-22.04
             artifact: ssx-datatool-linux
-          - os: macos-14
-            artifact: ssx-datatool-macos
+            asset: ssx-datatool-linux.tar.gz
+          # One native build per Mac architecture: PyInstaller can only bundle
+          # the architecture its Python runs as, and numpy/Pillow no longer
+          # publish universal2 wheels to combine both.
+          - os: macos-14 # Apple Silicon (arm64)
+            artifact: ssx-datatool-macos-arm64
+            asset: ssx-datatool-macos-arm64.zip
+            arch: arm64
+          - os: macos-15-intel # Intel (x86_64)
+            artifact: ssx-datatool-macos-x86_64
+            asset: ssx-datatool-macos-x86_64.zip
+            arch: x86_64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -49,16 +60,20 @@ jobs:
           ssx_datatool.py
       # One file per system, named as the README says: the .exe as it is, the
       # Linux program in a .tar.gz (keeps its executable bit), the macOS app
-      # bundle (a folder) in a .zip
+      # bundle (a folder) in a .zip. The macOS binary must match the runner:
+      # fail here rather than ship an app that won't start on that Mac.
+      - name: Check architecture (macOS)
+        if: runner.os == 'macOS'
+        run: lipo -archs dist/ssx-datatool.app/Contents/MacOS/ssx-datatool | grep -qw '${{ matrix.arch }}'
       - name: Name (Windows)
         if: runner.os == 'Windows'
-        run: Rename-Item dist/ssx-datatool.exe ssx-datatool-windows.exe
+        run: Rename-Item dist/ssx-datatool.exe ${{ matrix.asset }}
       - name: Archive (Linux)
         if: runner.os == 'Linux'
-        run: cd dist && chmod +x ssx-datatool && tar -czf ssx-datatool-linux.tar.gz ssx-datatool && rm ssx-datatool
+        run: cd dist && chmod +x ssx-datatool && tar -czf ${{ matrix.asset }} ssx-datatool && rm ssx-datatool
       - name: Zip (macOS app bundle)
         if: runner.os == 'macOS'
-        run: cd dist && ditto -c -k --keepParent ssx-datatool.app ssx-datatool-macos.zip && rm -rf ssx-datatool.app ssx-datatool
+        run: cd dist && ditto -c -k --keepParent ssx-datatool.app ${{ matrix.asset }} && rm -rf ssx-datatool.app ssx-datatool
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

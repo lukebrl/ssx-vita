@@ -50,6 +50,11 @@ pyinstaller --onefile --windowed --name ssx-datatool --icon ssxdata/icon.png \
     --add-data "ssxdata/icon.png:ssxdata" ssx_datatool.py      # ";" instead of ":" on Windows
 ```
 
+On macOS the build only runs on the architecture of the Python doing the packaging, so the
+workflow builds it twice: `macos-14` for Apple Silicon (`ssx-datatool-macos-arm64.zip`) and
+`macos-15-intel` for Intel (`ssx-datatool-macos-x86_64.zip`). A single universal2 build isn't
+possible without universal2 numpy/Pillow, which they no longer publish.
+
 ## Layout
 
 | Path | What |
